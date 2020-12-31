@@ -1,0 +1,6 @@
+# PRIVATE
+/config.py
+
+# LOCAL
+/start.sh
+/pycache/
