@@ -338,7 +338,8 @@ async def on_message(message):
         try:
             await tracklistMsg.delete()
         except:
-            print("no tracklist msg")
+            pass
+        removeList.append(message)
         votetracks = []
         recentTracks = getRecent()
         tracklist = "```nim\n"
@@ -379,12 +380,16 @@ async def on_message(message):
 
         for i in range(0,6):
             entry = leaderboard[i]
+            found = False
             for member in guild.members:
-                        if str(member.id) == str(entry[0]):
-                            embedData.append(member)
-                            break
-
-
+                if str(member.id) == str(entry[0]):
+                    found = True
+                    embedData.append(member)
+                    break
+            if not found:
+                memberData = await client.fetch_user(entry[0])
+                embedData.append(memberData)
+                    
         embed=discord.Embed(title="Leaderboard", description="Our top voted contributors")
         embed.set_thumbnail(url=embedData[0].avatar_url)
         for i in range(0,5):
@@ -408,6 +413,7 @@ async def on_message(message):
         elif "https://open.spotify.com/track" in str(message.content):
             urls = re.findall(URLregex, message.content)
             for url in urls:
+                url = convertTuple(url)
                 try:
                     trackID = IDfromURL(url)
                     removeTrack(IDfromURL(url))
