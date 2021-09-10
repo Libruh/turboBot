@@ -14,6 +14,7 @@ dbAddr = ""
 dbUser = ""
 dbPass = ""
 dbDatabase = ""
+dbTable = ""
 
 # MISC
 prefix = "%"
