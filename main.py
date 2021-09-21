@@ -73,14 +73,14 @@ def db_removeTrack(trackID):
 
 # adds specified tracks to the standard playlists and then calls db_addTracks
 def addTracks(trackIDs, addedBy):
-    #sp.playlist_add_items(weeklyPlaylist, trackIDs)
-    #sp.playlist_add_items(foreverPlaylist, trackIDs)
+    sp.playlist_add_items(weeklyPlaylist, trackIDs)
+    sp.playlist_add_items(foreverPlaylist, trackIDs)
     db_addTracks(trackIDs, addedBy)
     
 # removes specified tracks to the standard playlists and then calls db_removeTracks
 def removeTrack(trackID):
-    #sp.playlist_remove_all_occurrences_of_items(weeklyPlaylist, trackIDs)
-    #sp.playlist_remove_all_occurrences_of_items(foreverPlaylist, trackIDs)
+    sp.playlist_remove_all_occurrences_of_items(weeklyPlaylist, trackIDs)
+    sp.playlist_remove_all_occurrences_of_items(foreverPlaylist, trackIDs)
     db_removeTrack(trackID)
     
 
@@ -185,10 +185,10 @@ async def voteTrack(ctx, trackID):
         if found1 and found2:
             break
 
-    if voteReturn[0] == 1:
-        embedTitle = "This track now has " + str(voteReturn[0]) + " vote"
+    if voteReturn[0] == 0:
+        embedTitle = "This track now has " + str(voteReturn[0]+1) + " vote"
     else:
-        embedTitle = "This track now has " + str(voteReturn[0]) + " votes"
+        embedTitle = "This track now has " + str(voteReturn[0]+1) + " votes"
 
     embed=discord.Embed(title=track['artists'][0]['name']+" - "+track['name'], description=embedTitle)
     embed.set_author(name= authorName + " upvoted " + contributorName + "'s track", icon_url=authorAvatar)
@@ -397,15 +397,15 @@ async def _votelist(ctx):
         if str(reaction.emoji) in numbers and user.id == ctx.author.id:
             return user == ctx.author and str(reaction.emoji) == str(reaction.emoji)
             
-    # try:
-    reaction, user = await bot.wait_for('reaction_add', timeout=20.0, check=check)
-    trackID = spotifyData['tracks'][numbers.index(str(reaction))]['id']
-    embed = await voteTrack(ctx, trackID)
-    await votelistMessage.edit(embed=embed)
-    await votelistMessage.clear_reactions()
-    # except Exception as e:
-    #     print(e)
-    #     await votelistMessage.delete()
+    try:
+        reaction, user = await bot.wait_for('reaction_add', timeout=20.0, check=check)
+        trackID = spotifyData['tracks'][numbers.index(str(reaction))]['id']
+        embed = await voteTrack(ctx, trackID)
+        await votelistMessage.edit(embed=embed)
+        await votelistMessage.clear_reactions()
+    except Exception as e:
+        print(e)
+        await votelistMessage.delete()
 
     return
 
@@ -457,6 +457,7 @@ async def on_message(message):
                 else:
                     embed.set_author(name="Someone "+random.choice(alreadyQuips), icon_url="https://github.com/Libruh/turboWeb/blob/master/src/img/misc/emptyalbum.png?raw=true")
                     embed.description=("has already been submitted")
+                await message.add_reaction("❌")
                 await message.channel.send(embed=embed)
         if len(addTrackIDs) > 0:
             addTracks(addTrackIDs, message.author.id)
