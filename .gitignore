@@ -1,5 +1,6 @@
 # PRIVATE
 /config.py
+/.cache
 
 # LOCAL
 /start.sh
