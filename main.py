@@ -10,6 +10,7 @@ import re
 import asyncio
 import sys
 import random
+import time
 from config import *
 
 # The connection and authentication with the database using logins specified
@@ -126,13 +127,41 @@ def getLeaderboard(season):
 def amendTrackID(oldID, newID):
     query = "UPDATE "+dbTable+" SET trackID = '"+newID+"' WHERE trackID = '"+oldID+"';"
     print(query)
-    # try:
-    #     cursor.execute(query)
-    #     connection.commit()
-    #     print("changed")
-    # except Exception as e:
-    #     print(e)
-    #     connection.rollback()
+    try:
+        cursor.execute(query)
+        connection.commit()
+        print("changed")
+    except Exception as e:
+        print(e)
+        connection.rollback(0)
+
+def logVote(trackID, userID):
+    time2log = time.strftime('%Y-%m-%d %H:%M:%S')
+
+    query = "INSERT INTO "+voteTable+" (`authorID`, `trackID`,`datetime`) VALUES ('" + str(userID) + "','" + str(trackID) + "','"+str(time2log)+"')"
+    print(query)
+    try:
+        cursor.execute(query)
+        connection.commit()
+    except:
+        connection.rollback()
+
+def hasVoted(trackID, userID):
+    query = "SELECT * FROM "+voteTable+" WHERE authorID = '" + str(userID) + "' AND trackID = '" + str(trackID) + "';"
+
+    try:
+        cursor.execute(query)
+        connection.commit()
+        result = cursor.fetchone()
+    except Exception as e:
+        print(e)
+        connection.rollback()
+        return
+
+    if (result == None):
+        return False
+    else:
+        return True
     
 async def voteTrack(ctx, trackID):
     memberID = ctx.author.id
@@ -158,7 +187,14 @@ async def voteTrack(ctx, trackID):
         return
 
     if str(ctx.author.id) == voteReturn[1]:
-        embed=discord.Embed(title="You can't vote for your own track!", description="No matter how bad you want to...")
+        embed=discord.Embed(title="You can't vote for your own track!", description="No matter how bad you want to...", color=0xD8000C)
+        embed.set_author(name= ctx.author.display_name + " tried to vote for a track", icon_url=ctx.author.avatar_url)
+        embed.set_thumbnail(url=track['album']['images'][1]['url'])
+        return embed
+
+    alreadyVoted = hasVoted(trackID, memberID)
+    if alreadyVoted:
+        embed=discord.Embed(title="You already voted for this track!", description="Your vote was not counted.", color=0xD8000C)
         embed.set_author(name= ctx.author.display_name + " tried to vote for a track", icon_url=ctx.author.avatar_url)
         embed.set_thumbnail(url=track['album']['images'][1]['url'])
         return embed
@@ -190,9 +226,12 @@ async def voteTrack(ctx, trackID):
     else:
         embedTitle = "This track now has " + str(voteReturn[0]+1) + " votes"
 
-    embed=discord.Embed(title=track['artists'][0]['name']+" - "+track['name'], description=embedTitle)
+    embed=discord.Embed(title=track['artists'][0]['name']+" - "+track['name'], description=embedTitle, color=0x1DB954)
     embed.set_author(name= authorName + " upvoted " + contributorName + "'s track", icon_url=authorAvatar)
     embed.set_thumbnail(url=track['album']['images'][1]['url'])
+
+    logVote(trackID, str(memberID))
+
     return embed
 
 URLregex = "(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?"
@@ -223,7 +262,7 @@ async def _vote(ctx, link: str=None):
     trackID = None
     if link is None:
         recentTracks = getRecent()
-        trackID = recentTracks[len(recentTracks)-1][0]
+        trackID = recentTracks[0][0]
     else:
         trackID = IDfromURL(link)
 
@@ -250,7 +289,7 @@ async def _remove(ctx, link: str=None):
     trackID = None
     if link is None:
         recentTracks = getRecent()
-        trackID = recentTracks[len(recentTracks)-1][0]
+        trackID = recentTracks[0][0]
     else:
         trackID = IDfromURL(link)
 
