@@ -253,12 +253,12 @@ async def _ping(ctx): # Defines a new "context" (ctx) command called "ping."
                     name="link",
                     description="a Spotify track link",
                     option_type=3,
-                    required=False
+                    required=True
                 )
             ]
 )
 
-async def _vote(ctx, link: str=None):
+async def _vote(ctx, link):
     trackID = None
     if link is None:
         recentTracks = getRecent()
