@@ -64,7 +64,6 @@ def db_addTracks(trackIDs, addedBy):
 def db_removeTrack(trackID):
     resetConnection()
     query = "DELETE FROM "+dbTable+" WHERE `trackID` = '"+trackID+"';"
-    print(query)
     try:
         cursor.execute(query)
         connection.commit()
@@ -80,8 +79,8 @@ def addTracks(trackIDs, addedBy):
     
 # removes specified tracks to the standard playlists and then calls db_removeTracks
 def removeTrack(trackID):
-    sp.playlist_remove_all_occurrences_of_items(weeklyPlaylist, trackIDs)
-    sp.playlist_remove_all_occurrences_of_items(foreverPlaylist, trackIDs)
+    sp.playlist_remove_all_occurrences_of_items(weeklyPlaylist, [trackID])
+    sp.playlist_remove_all_occurrences_of_items(foreverPlaylist, [trackID])
     db_removeTrack(trackID)
     
 
@@ -126,11 +125,9 @@ def getLeaderboard(season):
     
 def amendTrackID(oldID, newID):
     query = "UPDATE "+dbTable+" SET trackID = '"+newID+"' WHERE trackID = '"+oldID+"';"
-    print(query)
     try:
         cursor.execute(query)
         connection.commit()
-        print("changed")
     except Exception as e:
         print(e)
         connection.rollback(0)
@@ -139,7 +136,6 @@ def logVote(trackID, userID):
     time2log = time.strftime('%Y-%m-%d %H:%M:%S')
 
     query = "INSERT INTO "+voteTable+" (`authorID`, `trackID`,`datetime`) VALUES ('" + str(userID) + "','" + str(trackID) + "','"+str(time2log)+"')"
-    print(query)
     try:
         cursor.execute(query)
         connection.commit()
@@ -163,13 +159,15 @@ def hasVoted(trackID, userID):
     else:
         return True
     
-async def voteTrack(ctx, trackID):
-    memberID = ctx.author.id
+async def voteTrack(trackID, memberID, curGuild):
     track = sp.track(trackID, 'US')
 
-    curGuild = ctx.guild.id
     for guild in bot.guilds:
         if guild.id == curGuild:
+            break
+
+    for author in guild.members:
+        if str(author.id) == str(memberID):
             break
 
     voteReturn = None
@@ -186,16 +184,16 @@ async def voteTrack(ctx, trackID):
         connection.rollback()
         return
 
-    if str(ctx.author.id) == voteReturn[1]:
+    if str(author.id) == voteReturn[1]:
         embed=discord.Embed(title="You can't vote for your own track!", description="No matter how bad you want to...", color=0xD8000C)
-        embed.set_author(name= ctx.author.display_name + " tried to vote for a track", icon_url=ctx.author.avatar_url)
+        embed.set_author(name= author.display_name + " tried to vote for a track", icon_url=author.avatar_url)
         embed.set_thumbnail(url=track['album']['images'][1]['url'])
         return embed
 
     alreadyVoted = hasVoted(trackID, memberID)
     if alreadyVoted:
         embed=discord.Embed(title="You already voted for this track!", description="Your vote was not counted.", color=0xD8000C)
-        embed.set_author(name= ctx.author.display_name + " tried to vote for a track", icon_url=ctx.author.avatar_url)
+        embed.set_author(name= author.display_name + " tried to vote for a track", icon_url=author.avatar_url)
         embed.set_thumbnail(url=track['album']['images'][1]['url'])
         return embed
 
@@ -259,14 +257,9 @@ async def _ping(ctx): # Defines a new "context" (ctx) command called "ping."
 )
 
 async def _vote(ctx, link):
-    trackID = None
-    if link is None:
-        recentTracks = getRecent()
-        trackID = recentTracks[0][0]
-    else:
-        trackID = IDfromURL(link)
+    trackID = IDfromURL(link)
 
-    embed = await voteTrack(ctx, trackID)
+    embed = await voteTrack(trackID, ctx.author.id, ctx.guild.id)
     await ctx.send(embed=embed)
 
 @slash.slash(name="remove", guild_ids = serverIDs,
@@ -439,7 +432,7 @@ async def _votelist(ctx):
     try:
         reaction, user = await bot.wait_for('reaction_add', timeout=20.0, check=check)
         trackID = spotifyData['tracks'][numbers.index(str(reaction))]['id']
-        embed = await voteTrack(ctx, trackID)
+        embed = await voteTrack(trackID, ctx.author.id, ctx.guild.id)
         await votelistMessage.edit(embed=embed)
         await votelistMessage.clear_reactions()
     except Exception as e:
@@ -456,6 +449,7 @@ async def on_message(message):
     global tracklistMsg
     global votetracks
     global removeList
+    someoneElse = False
 
     if message.author == bot.user:
         return
@@ -490,16 +484,43 @@ async def on_message(message):
                     if member.id == message.author.id:
                         embed.set_author(name= "You already submitted this!", icon_url=avatar)
                     else:
+                        someoneElse = True
                         embed.set_author(name= displayName + " "+random.choice(alreadyQuips), icon_url=avatar)
-                    embed.description=("has already been submitted")
+                    embedString = "has already been submitted"
+                    if someoneElse:
+                        embedString += "\n\nReact with ❤️ to give it a vote!"
+                    embed.description=(embedString)
                     embed.set_thumbnail(url=track['album']['images'][1]['url'])
                 else:
                     embed.set_author(name="Someone "+random.choice(alreadyQuips), icon_url="https://github.com/Libruh/turboWeb/blob/master/src/img/misc/emptyalbum.png?raw=true")
                     embed.description=("has already been submitted")
-                await message.add_reaction("❌")
-                await message.channel.send(embed=embed)
+                if someoneElse:
+                    await message.add_reaction("❤️")
+                else:
+                    await message.add_reaction("❌")
+                
+                voteMsg = await message.channel.send(embed=embed)
         if len(addTrackIDs) > 0:
             addTracks(addTrackIDs, message.author.id)
             await message.add_reaction("✅")
+            await message.add_reaction("❤️")
+
+@bot.event
+async def on_raw_reaction_add(react_obj):
+    if bot.user == react_obj.member:
+        return
+
+    voteReacts=["✅", "❤️"]
+
+    channel = bot.get_channel(react_obj.channel_id)
+    message = await channel.fetch_message(react_obj.message_id)
+    if "https://open.spotify.com/track" in str(message.content) and str(react_obj.emoji) in voteReacts and not message.content.startswith("/"):
+        urls = re.findall(URLregex, message.content)
+        addTrackIDs = []
+        trackIDs = []
+        for url in urls: trackIDs.append(IDfromURL(url))
+        for trackID in trackIDs:
+            embed = await voteTrack(trackID, react_obj.member.id, react_obj.guild_id)
+            await channel.send(embed=embed)
 
 bot.run(discordPasskey)

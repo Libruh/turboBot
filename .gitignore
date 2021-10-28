@@ -4,5 +4,4 @@
 
 # LOCAL
 /start.sh
-/pycache/
-/pycache/*
+*.pyc
