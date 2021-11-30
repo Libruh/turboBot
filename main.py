@@ -83,7 +83,6 @@ def removeTrack(trackID):
     sp.playlist_remove_all_occurrences_of_items(foreverPlaylist, [trackID])
     db_removeTrack(trackID)
     
-
 def getRecent():
     query = "SELECT * FROM "+dbTable+" ORDER BY `entryNum` DESC LIMIT 10"
     resetConnection()
@@ -487,23 +486,17 @@ async def on_message(message):
                         someoneElse = True
                         embed.set_author(name= displayName + " "+random.choice(alreadyQuips), icon_url=avatar)
                     embedString = "has already been submitted"
-                    if someoneElse:
-                        embedString += "\n\nReact with ❤️ to give it a vote!"
                     embed.description=(embedString)
                     embed.set_thumbnail(url=track['album']['images'][1]['url'])
                 else:
                     embed.set_author(name="Someone "+random.choice(alreadyQuips), icon_url="https://github.com/Libruh/turboWeb/blob/master/src/img/misc/emptyalbum.png?raw=true")
                     embed.description=("has already been submitted")
-                if someoneElse:
-                    await message.add_reaction("❤️")
-                else:
-                    await message.add_reaction("❌")
+                await message.add_reaction("❌")
                 
                 voteMsg = await message.channel.send(embed=embed)
         if len(addTrackIDs) > 0:
             addTracks(addTrackIDs, message.author.id)
             await message.add_reaction("✅")
-            await message.add_reaction("❤️")
 
 @bot.event
 async def on_raw_reaction_add(react_obj):
