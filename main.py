@@ -11,6 +11,7 @@ import asyncio
 import sys
 import random
 import time
+from pprint import pprint
 from config import *
 
 # The connection and authentication with the database using logins specified
@@ -97,7 +98,11 @@ def convertTuple(tup):
 def IDfromURL(url):
     if type(url) is tuple:
         url = convertTuple(url)
-    trackID = url.split('/track/')[1]
+    trackID = ""
+    if "/playlist/" in url:
+        trackID = url.split('/playlist/')[1]
+    else:
+        trackID = url.split('/track/')[1]
     trackID = trackID.split('?')[0]
     return trackID
 
@@ -439,6 +444,100 @@ async def _votelist(ctx):
         await votelistMessage.delete()
 
     return
+
+alreadyContributed = {}
+
+@slash.slash(name="wrapped", guild_ids = serverIDs,
+        description="Add your Spotify wrapped to the Turbo Wrapped 2021 playlist",
+        options=[
+            create_option(
+                name="link",
+                description="Link to a playlist containing your top songs",
+                option_type=3,
+                required=True
+            )
+        ]
+)
+
+async def _wrapped(ctx, link):
+
+    curGuild = ctx.guild.id
+    for guild in bot.guilds:
+        if guild.id == curGuild:
+            break
+
+    wrappedID = "6P33hEaZsIBgEsn17unvLO"
+    playlistID = IDfromURL(link)
+    removeMessage = None
+
+    playlist = sp.playlist(playlistID, fields="name,tracks")
+    tracks = [item['track'] for item in playlist['tracks']['items']]
+    wrappedPlaylist = sp.playlist(wrappedID, fields="images")
+    artURL = wrappedPlaylist['images'][0]['url']
+
+    displayName = ''
+    avatar = ''
+
+    if playlist['name'] == "Your Top Songs 2021":
+        embed=discord.Embed(title="You can't use this playlist.", description= "You must drag your 2021 Wrapped tracks into a new playlist and use that.", color=0xEED202)
+        embed.set_author(name="Turbo Wrapped")
+        embed.set_thumbnail(url=artURL)
+
+        await ctx.send(embed=embed)
+        return
+
+
+    for member in guild.members:
+        if str(member.id) == str(ctx.author.id):
+            displayName = member.display_name
+            avatar = member.avatar_url
+            break
+
+    if displayName in alreadyContributed.keys():
+        embed=discord.Embed(title=displayName+" has already contributed.", description= "Erase your existing contributions and include new ones?", color=0xCF0003)
+        embed.set_author(name="Turbo Wrapped")
+        embed.set_thumbnail(url=artURL)
+
+        removeMessage = await ctx.send(embed=embed)
+
+        answers = ["✅","❌"]
+        for reaction in answers:
+            await ctx.message.add_reaction(emoji=reaction)
+        
+        def check(reaction, user):
+            if str(reaction.emoji) in answers and user.id == ctx.author.id:
+                return user == ctx.author and str(reaction.emoji) == str(reaction.emoji)
+
+        try:
+            reaction, user = await bot.wait_for('reaction_add', timeout=20.0, check=check)
+            if(str(reaction)=="❌"):
+                await removeMessage.delete()
+                return
+            elif(str(reaction)=="✅"):
+                sp.playlist_remove_all_occurrences_of_items(wrappedID, alreadyContributed[displayName])
+        except Exception as e:
+            print(e)
+            await removeMessage.delete()
+
+    topFive = []
+    for track in tracks:
+        topFive.append(track['id'])
+        if len(topFive) == 5:
+            break
+    
+    sp.playlist_add_items(wrappedID, topFive)
+
+    embed=discord.Embed(title=displayName+" contributed their top tracks", description= "5 songs have been added.", color=0x009908)
+    embed.set_author(name="Turbo Wrapped")
+    embed.set_thumbnail(url=artURL)
+
+    alreadyContributed[displayName]=topFive
+
+    if removeMessage is not None:
+        await removeMessage.clear_reactions()
+        await removeMessage.edit(embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 @bot.event
 async def on_message(message):
