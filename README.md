@@ -8,7 +8,7 @@ Any time a link is sent to the `#music` channel, Turbo Bot adds the track to a S
 
 <img align="left" width="100" height="100" src="./img/turboWeekly.jpg">
 
-This playlist is the main place to find new music. new Tracks go directly here, and then are completely wiped every monday. 
+This playlist is the main place to find new music. new tracks go directly here, and then are completely wiped every monday. 
 
 <br />
 
@@ -44,7 +44,7 @@ To make navigating Turbo's massive music library easier. [A website](https://tur
 
 ### Voting
 
-Via either commands or Discord reactions, users are able to commend tracks via a built-in voting system. Users that earn votes enjoy a spot on the leaderboard, special server roles, and their tracks placed in [Turbo Top](#Turbo-Top) playlist.
+Via either commands or Discord reactions, users are able to commend tracks via a built-in voting system. Users that earn votes enjoy a spot on the leaderboard, special server roles, and their tracks placed in the Turbo Top playlist.
 
 ### Seasons
 
