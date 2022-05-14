@@ -150,7 +150,7 @@ async def getTopUsers():
     bluePip = emojiDict["blue_pip"]
     turboEmoji = emojiDict["turbo"]
 
-    embed=discord.Embed(title= "Weekly Reset", description= "Everything has been reset! Last week, you submitted **"+str(lastWeekCount)+"** songs", color=0xb54dff)
+    embed=discord.Embed(title= "Weekly Reset - Season 3!", description= "Season 3 has started and everything has been reset! Last week, you submitted **"+str(lastWeekCount)+"** songs", color=0xb54dff)
 
     if votingWinner == votedWinner:
         await memberDict[votingWinner].add_roles(roleDict["Turbo AF"])

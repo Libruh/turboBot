@@ -1,5 +1,7 @@
+from cmath import log
 import discord
 from discord.ext import commands
+from discord.ext import tasks
 from discord_slash import SlashCommand, SlashContext
 from discord_slash.utils.manage_commands import create_option
 import spotipy
@@ -7,8 +9,6 @@ from spotipy.oauth2 import SpotifyOAuth
 import MySQLdb
 import datetime
 import re
-import asyncio
-import sys
 import random
 import time
 from pprint import pprint
@@ -228,6 +228,9 @@ async def voteTrack(trackID, memberID, curGuild):
     else:
         embedTitle = "This track now has " + str(voteReturn[0]+1) + " votes"
 
+    if contributorName == "":
+        contributorName = "Someone"
+
     embed=discord.Embed(title=track['artists'][0]['name']+" - "+track['name'], description=embedTitle, color=0x1DB954)
     embed.set_author(name= authorName + " upvoted " + contributorName + "'s track", icon_url=authorAvatar)
     embed.set_thumbnail(url=track['album']['images'][1]['url'])
@@ -241,6 +244,8 @@ URLregex = "(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\
 @bot.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
+
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="Turbo Weekly"))
 
 @slash.slash(name="ping", guild_ids=serverIDs,
             description="Every good bot has a ping command!"
@@ -259,7 +264,6 @@ async def _ping(ctx): # Defines a new "context" (ctx) command called "ping."
                 )
             ]
 )
-
 async def _vote(ctx, link):
     trackID = IDfromURL(link)
 
@@ -460,7 +464,6 @@ alreadyContributed = {}
 )
 
 async def _wrapped(ctx, link):
-
     curGuild = ctx.guild.id
     for guild in bot.guilds:
         if guild.id == curGuild:
@@ -547,7 +550,6 @@ async def on_message(message):
     global tracklistMsg
     global votetracks
     global removeList
-    someoneElse = False
 
     if message.author == bot.user:
         return
@@ -558,44 +560,91 @@ async def on_message(message):
             if guild.id == curGuild:
                 break
         
-        urls = re.findall(URLregex, message.content)
-        addTrackIDs = []
+        addIDs = []
+        refreshIDs = []
         trackIDs = []
+
+        urls = re.findall(URLregex, message.content)
         for url in urls: trackIDs.append(IDfromURL(url))
+
         contributorDict = getContributors(trackIDs)
+
+        playlistPull = sp.playlist_tracks(weeklyPlaylist, fields="items(track(id))")
+        playlistTracks = []
+        for item in playlistPull['items']:
+            playlistTracks.append(item['track']['id'])
+
+
         for trackID in trackIDs:
             if trackID not in contributorDict:
-                addTrackIDs.append(trackID)
+                addIDs.append(trackID)
             else:
                 track = sp.track(trackID, 'US')
-                displayName = ''
-                avatar = ''
+
+                contributorName = ''
+                contributorAvatar = ''
+                senderName = ''
+                senderAvatar = ''
+                found1 = False
+                found2 = False
+
                 if not contributorDict[trackID] == "":
+                    
                     for member in guild.members:
+                        if str(member.id) == str(message.author.id):
+                            senderName = member.display_name
+                            senderAvatar = member.avatar_url
+                            found1 = True
                         if str(member.id) == str(contributorDict[trackID]):
-                            displayName = member.display_name
-                            avatar = member.avatar_url
+                            contributorName = member.display_name
+                            contributorAvatar = member.avatar_url
+                            found2 = True
+                        if found1 and found2:
                             break
 
                 embed=discord.Embed(title=track['name'] + " - "+track['artists'][0]['name'])
-                if displayName != "":
-                    if member.id == message.author.id:
-                        embed.set_author(name= "You already submitted this!", icon_url=avatar)
-                    else:
-                        someoneElse = True
-                        embed.set_author(name= displayName + " "+random.choice(alreadyQuips), icon_url=avatar)
-                    embedString = "has already been submitted"
-                    embed.description=(embedString)
-                    embed.set_thumbnail(url=track['album']['images'][1]['url'])
-                else:
-                    embed.set_author(name="Someone "+random.choice(alreadyQuips), icon_url="https://github.com/Libruh/turboWeb/blob/master/src/img/misc/emptyalbum.png?raw=true")
-                    embed.description=("has already been submitted")
-                await message.add_reaction("❌")
                 
-                voteMsg = await message.channel.send(embed=embed)
-        if len(addTrackIDs) > 0:
-            addTracks(addTrackIDs, message.author.id)
+                if refreshEnabled:
+                    if trackID not in playlistTracks:
+                        refreshIDs.append(trackID)
+                    else:
+                        embed.set_author(name= senderName + " tried to refresh a track", icon_url= senderAvatar)
+
+                        if member.id == message.author.id:
+                            embed.description="You can't refresh your own track!"
+                        else:
+                            embed.description="is already in the playlist this week"
+                        
+                        embed.set_thumbnail(url=track['album']['images'][1]['url'])
+                        embed.color = 0xD8000C
+                        await message.add_reaction("❌")
+
+                        await message.channel.send(embed=embed)
+                else:
+                    if contributorName != "":
+                        if member.id == message.author.id:
+                            embed.set_author(name= "You already submitted this!", icon_url=contributorAvatar)
+                        else:
+                            embed.set_author(name= contributorName + " "+random.choice(alreadyQuips), icon_url=contributorAvatar)
+                        embed.set_thumbnail(url=track['album']['images'][1]['url'])
+                    else:
+                        embed.set_author(name="Someone "+random.choice(alreadyQuips), icon_url="https://github.com/Libruh/turboWeb/blob/master/src/img/misc/emptyalbum.png?raw=true")
+
+                    embed.description=("has already been submitted")
+                    embed.color = 0xD8000C
+                
+                    await message.channel.send(embed=embed)
+
+        if len(addIDs)+len(refreshIDs) < len(trackIDs):
+            await message.add_reaction("❌")
+        if len(addIDs) > 0:
+            addTracks(addIDs, message.author.id)
             await message.add_reaction("✅")
+        if len(refreshIDs) > 0:
+            sp.playlist_add_items(weeklyPlaylist, refreshIDs)
+            await message.add_reaction("🔄")
+                
+        await message.add_reaction("❤️")
 
 @bot.event
 async def on_raw_reaction_add(react_obj):
@@ -608,7 +657,6 @@ async def on_raw_reaction_add(react_obj):
     message = await channel.fetch_message(react_obj.message_id)
     if "https://open.spotify.com/track" in str(message.content) and str(react_obj.emoji) in voteReacts and not message.content.startswith("/"):
         urls = re.findall(URLregex, message.content)
-        addTrackIDs = []
         trackIDs = []
         for url in urls: trackIDs.append(IDfromURL(url))
         for trackID in trackIDs:
